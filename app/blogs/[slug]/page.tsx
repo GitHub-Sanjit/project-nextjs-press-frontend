@@ -1,4 +1,5 @@
 import React from "react";
+import DisLikeButton from "./../../ui/DisLikeButton";
 
 const BlogsSlugPage = async ({
   params,
@@ -6,7 +7,12 @@ const BlogsSlugPage = async ({
   params: Promise<{ slug: string }>;
 }) => {
   const { slug } = await params;
-  return <div>BlogsSlugPage : {slug}</div>;
+  return (
+    <div>
+      BlogsSlugPage : {slug}
+      <DisLikeButton blogSlug={slug}></DisLikeButton>
+    </div>
+  );
 };
 
 export default BlogsSlugPage;
