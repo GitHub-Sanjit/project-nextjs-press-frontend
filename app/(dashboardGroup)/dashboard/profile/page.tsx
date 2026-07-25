@@ -1,5 +1,8 @@
-const UserProfilePage = () => {
-  return <div>UserProfilePage</div>;
-};
 
-export default UserProfilePage;
+const UserProfilePage = () => {
+  return (
+    <div>UserProfilePage</div>
+  )
+}
+
+export default UserProfilePage
