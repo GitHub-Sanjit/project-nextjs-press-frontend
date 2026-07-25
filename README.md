@@ -1,26 +1,26 @@
-# Module 28: Building Blog App Frontend with Next.js (Part-2)
+# Module 29: Building Blog App Frontend with Next.js (Part-3)
 
-> **Goal:** Learn advanced Next.js concepts including Route Groups, Data Fetching, SSR, CSR, SSG, ISR, Caching, Server Actions, Project Architecture, Shadcn/UI integration, Folder Structure, and Environment Variables while setting up a production-ready Blog Application.
+> **Goal:** Build a complete authentication system in Next.js using **Server Actions**, **HTTP-Only Cookies**, **Shadcn/UI**, **React's `useActionState`**, **dynamic navigation**, and **authentication state management**.
 
 ---
 
 # Table of Contents
 
 - Introduction
-- Route Grouping in Next.js
-- Data Fetching in Next.js
-- SSR vs CSR
-- Fetch API & Caching
-- Cache Component
-- Revalidation
-- SSG, ISR & Dynamic SSR
-- Mutation
-- Server Functions & Server Actions
-- Project Route Structure
-- Integrating Shadcn/UI
+- Authentication Flow Overview
+- Creating Login Form with Shadcn/UI
+- Server Actions for Login
+- Handling Form State with `useActionState`
+- Setting Authentication Tokens in Cookies
+- Redirecting Users After Login
+- Client-Side vs Server-Side Navigation
+- Creating a Common Navbar
+- Fetching Logged-in User Information (`/me`)
+- Caching User Data
+- Dynamic Navbar Based on Authentication
+- Logout Functionality
+- Complete Authentication Flow
 - Project Folder Structure
-- Environment Variables
-- Important Commands
 - Best Practices
 - Module Summary
 
@@ -28,794 +28,813 @@
 
 # Introduction
 
-In Module 27, we learned the fundamentals of Next.js, including layouts, pages, navigation, and Server vs Client Components.
+In the previous modules, we learned:
 
-In this module, we move beyond the basics and explore how real-world Next.js applications manage data, caching, rendering strategies, project organization, UI libraries, and environment variables.
+- Next.js fundamentals
+- App Router
+- Route Groups
+- Data Fetching
+- SSR, CSR, SSG, ISR
+- Server Actions
+- Project Structure
+- Shadcn/UI
 
-By the end of this module, you'll understand how to build scalable, maintainable, and production-ready Next.js applications.
+In this module, we build one of the most important features of any web application:
 
----
+# User Authentication
 
-# Route Grouping in Next.js
+By the end of this module, users will be able to
 
-## What is Route Grouping?
-
-A **Route Group** allows you to organize routes into folders **without affecting the URL**.
-
-Folders wrapped with parentheses `()` are ignored in the generated route.
-
-Example:
-
-```
-app/
-│
-├── (public)/
-│   ├── about/
-│   │   └── page.tsx
-│   └── contact/
-│       └── page.tsx
-│
-├── (dashboard)/
-│   ├── profile/
-│   │   └── page.tsx
-│   └── settings/
-│       └── page.tsx
-```
-
-Generated URLs:
-
-```
-/about
-/contact
-/profile
-/settings
-```
-
-Notice that `(public)` and `(dashboard)` do **not** appear in the URL.
-
----
-
-## Why Use Route Groups?
-
-Route Groups are useful when:
-
-- Organizing large applications
-- Applying different layouts
-- Separating authentication routes
-- Grouping dashboard pages
-- Keeping project structure clean
-
-Example:
-
-```
-app/
-
-(auth)/
-
-(blog)/
-
-(admin)/
-
-(marketing)/
-```
-
-Each group can have its own layout.
-
----
-
-## Example
-
-```
-app/
-
-(auth)/
-
-layout.tsx
-
-login/page.tsx
-
-register/page.tsx
-
-(blog)/
-
-layout.tsx
-
-posts/page.tsx
-```
-
----
-
-# Data Fetching in Next.js
-
-One of the biggest advantages of Next.js is that data can be fetched directly inside Server Components.
-
-Example:
-
-```tsx
-async function getPosts() {
-    const res = await fetch("https://example.com/posts");
-    return res.json();
-}
-
-export default async function Home() {
-    const posts = await getPosts();
-
-    return (
-        <div>
-            {posts.map(post => (
-                <h2 key={post.id}>{post.title}</h2>
-            ))}
-        </div>
-    );
-}
-```
-
-Unlike React, you don't always need:
-
-- useEffect()
-- useState()
-
----
-
-# Server Side Rendering (SSR)
-
-SSR means:
-
-The page is generated on every request.
-
-Flow:
-
-```
-Browser
-
-↓
-
-Request
-
-↓
-
-Next.js Server
-
-↓
-
-Database/API
-
-↓
-
-HTML
-
-↓
-
-Browser
-```
-
-Advantages
-
-- Fresh data
-- Better SEO
-- Faster first paint
-
-Disadvantages
-
-- More server load
-- Slower than static pages
-
----
-
-# Client Side Rendering (CSR)
-
-CSR renders everything inside the browser.
-
-Example
-
-```tsx
-"use client";
-
-import { useEffect, useState } from "react";
-
-export default function Posts() {
-    const [posts, setPosts] = useState([]);
-
-    useEffect(() => {
-        fetch("/api/posts")
-            .then(res => res.json())
-            .then(setPosts);
-    }, []);
-
-    return <div>{posts.length}</div>;
-}
-```
-
-Advantages
-
-- Interactive
-- Great for dashboards
-
-Disadvantages
-
-- Worse SEO
-- Initial loading delay
-
----
-
-# SSR vs CSR
-
-| Feature | SSR | CSR |
-|----------|-----|-----|
-| SEO | Excellent | Poor |
-| First Load | Fast | Slower |
-| Server Load | Higher | Lower |
-| Browser JS | Less | More |
-| Fresh Data | Always | After API Call |
-
----
-
-# Fetch API in Next.js
-
-Next.js extends the native Fetch API.
-
-Example:
-
-```tsx
-const res = await fetch(API_URL);
-```
-
-Unlike React, fetch includes powerful caching options.
-
----
-
-## Default Behavior
-
-Server Components cache fetch requests automatically.
-
-```tsx
-await fetch(API_URL);
-```
-
-This improves performance.
-
----
-
-## Disable Cache
-
-```tsx
-await fetch(API_URL, {
-    cache: "no-store"
-});
-```
-
-Every request fetches fresh data.
-
----
-
-## Force Cache
-
-```tsx
-await fetch(API_URL, {
-    cache: "force-cache"
-});
-```
-
-Always use cached data.
-
----
-
-# Cache Component
-
-Caching improves performance by storing fetched data.
-
-Benefits:
-
-- Faster response
-- Less API usage
-- Better scalability
-- Lower server cost
-
-Caching strategies:
-
-```
-force-cache
-
-↓
-
-default
-
-↓
-
-revalidate
-
-↓
-
-no-store
-```
-
----
-
-# Revalidation
-
-Sometimes cached data becomes outdated.
-
-Revalidation tells Next.js when to refresh cached data.
-
-Example:
-
-```tsx
-await fetch(API_URL, {
-    next: {
-        revalidate: 60
-    }
-});
-```
-
-Meaning:
-
-Refresh data every **60 seconds**.
-
----
-
-# Static Site Generation (SSG)
-
-SSG generates pages during build time.
-
-```
-Build
-
-↓
-
-Generate HTML
-
-↓
-
-Deploy
-
-↓
-
-Serve Static HTML
-```
-
-Perfect for
-
-- Blogs
-- Documentation
-- Portfolio
-
-Advantages
-
-- Extremely fast
-- SEO friendly
-- CDN optimized
-
-Disadvantages
-
-- Data isn't updated until rebuild
-
----
-
-# Incremental Static Regeneration (ISR)
-
-ISR combines SSG with automatic updates.
-
-Flow
-
-```
-Build
-
-↓
-
-Static Page
-
-↓
-
-User Request
-
-↓
-
-60 Seconds
-
-↓
-
-Background Regeneration
-
-↓
-
-Updated Page
-```
-
-Example
-
-```tsx
-await fetch(API_URL, {
-    next: {
-        revalidate: 300
-    }
-});
-```
-
----
-
-# Dynamic SSR
-
-Sometimes data must always be fresh.
-
-Example
-
-- User profile
-- Notifications
-- Dashboard
-- Orders
-
-Disable cache
-
-```tsx
-await fetch(API_URL, {
-    cache: "no-store"
-});
-```
-
-Now every request renders on the server.
-
----
-
-# Comparison
-
-| Rendering | Generated | Updates |
-|------------|-----------|----------|
-| CSR | Browser | Every fetch |
-| SSR | Every Request | Immediate |
-| SSG | Build Time | Rebuild |
-| ISR | Build + Revalidate | Automatic |
-
----
-
-# Mutation
-
-## What is Mutation?
-
-Mutation means **changing data**.
-
-Examples
-
-- Create Post
-- Update Post
-- Delete Post
-- Like Post
-- Comment
 - Login
-- Register
+- Store authentication securely
+- Stay logged in
+- View personalized navigation
+- Logout securely
 
-Reading data is called
+---
+
+# Authentication Flow Overview
+
+A typical authentication process looks like this:
 
 ```
-Query
-```
+User
 
-Changing data is called
+↓
 
-```
-Mutation
+Enter Email & Password
+
+↓
+
+Login Form
+
+↓
+
+Server Action
+
+↓
+
+Backend API
+
+↓
+
+Validate Credentials
+
+↓
+
+Generate JWT Token
+
+↓
+
+Store Token in Cookie
+
+↓
+
+Redirect User
+
+↓
+
+Fetch Current User (/me)
+
+↓
+
+Update Navbar
+
+↓
+
+User Authenticated
 ```
 
 ---
 
-# Server Functions
+# Creating Login Form with Shadcn/UI
 
-Server Functions execute only on the server.
+## Why Shadcn/UI?
 
-Benefits
+Shadcn/UI provides
 
-- Secure
-- Access database
-- Hide secrets
+- Accessible components
+- Beautiful design
+- Tailwind CSS integration
+- TypeScript support
+- Customizable components
+
+Instead of building every input manually, we use ready-made components.
+
+Example:
+
+```tsx
+<Input
+    placeholder="Enter your email"
+/>
+
+<Input
+    type="password"
+/>
+
+<Button>
+    Login
+</Button>
+```
 
 ---
 
-# Server Actions
+## Benefits
 
-Server Actions allow forms and client components to call server-side functions without creating a separate API route.
+- Consistent UI
+- Faster development
+- Better accessibility
+- Responsive design
+
+---
+
+# Implementing Server Action for Login
+
+Instead of creating an API route inside Next.js, we can use a **Server Action**.
 
 Example
 
 ```tsx
 "use server";
 
-export async function createPost(formData: FormData) {
-    // Save data to database
+export async function loginUser(formData: FormData) {
+
+    // Call backend API
+
 }
 ```
 
-Client Component
+The Server Action
 
-```tsx
-<form action={createPost}>
-    ...
-</form>
-```
-
-Advantages
-
-- Less boilerplate
-- No API route needed
-- Better type safety
-- Cleaner code
+- receives form data
+- validates input
+- calls backend API
+- processes response
+- stores authentication token
+- redirects user
 
 ---
 
-# Project Route Structure
+## Advantages
 
-A scalable project might look like this:
+- Less boilerplate
+- Secure execution
+- Direct server communication
+- No extra API route required
+
+---
+
+# Handling Form Pending State with `useActionState`
+
+Submitting a form takes time.
+
+Without feedback, users may think nothing is happening.
+
+React provides
 
 ```
-app/
+useActionState()
+```
 
-(blog)/
+to manage server action state.
 
-posts/
+Example
 
-[id]/
+```tsx
+const [state, formAction, pending] =
+    useActionState(loginUser, null);
+```
 
-page.tsx
+During submission
 
-(auth)/
+```
+Button
 
-login/
+↓
 
-register/
+Loading...
 
-(dashboard)/
+↓
 
-profile/
+Disabled
 
-settings/
+↓
 
-api/
+Response
 
-layout.tsx
+↓
 
-page.tsx
+Enabled
+```
+
+---
+
+## Benefits
+
+- Prevents duplicate submissions
+- Better user experience
+- Displays validation errors
+- Tracks server response
+
+---
+
+# Setting Authentication Tokens in Cookies
+
+After successful login
+
+Backend returns
+
+```
+Access Token
+
+Refresh Token
+```
+
+Instead of storing them inside
+
+- Local Storage ❌
+- Session Storage ❌
+
+we store them inside
+
+## HTTP-Only Cookies
+
+Advantages
+
+- More secure
+- Protected from JavaScript
+- Prevents XSS attacks
+- Automatically included with requests
+
+Example
+
+```tsx
+cookies().set(
+    "accessToken",
+    token
+);
+```
+
+---
+
+# Why Cookies?
+
+```
+Browser
+
+↓
+
+Stores Cookie
+
+↓
+
+Automatically Sends Cookie
+
+↓
+
+Server Reads Cookie
+
+↓
+
+Authenticate User
+```
+
+Users don't need to log in repeatedly.
+
+---
+
+# Redirecting User After Login
+
+After successful login
+
+```
+Login
+
+↓
+
+Dashboard
+
+or
+
+↓
+
+Home Page
+```
+
+Next.js provides multiple redirect methods.
+
+---
+
+## Server-side Redirect
+
+Inside Server Action
+
+```tsx
+redirect("/");
+```
+
+Runs before the page is rendered.
+
+---
+
+## Client-side Redirect
+
+Inside Client Component
+
+```tsx
+const router = useRouter();
+
+router.push("/");
+```
+
+Runs after rendering.
+
+---
+
+# Client-Side vs Server-Side Navigation
+
+## Client-side Navigation
+
+Uses
+
+```
+router.push()
+
+<Link>
+
+router.replace()
 ```
 
 Benefits
 
-- Easy maintenance
-- Feature separation
-- Independent layouts
-- Cleaner navigation
+- Fast
+- No full page reload
+- Better user experience
 
 ---
 
-# Integrating Shadcn/UI
+## Server-side Navigation
 
-## What is Shadcn/UI?
+Uses
 
-Shadcn/UI is a collection of reusable components built with:
+```
+redirect()
+```
 
-- Radix UI
-- Tailwind CSS
+Benefits
 
-Unlike traditional UI libraries, components are copied into your project, giving you full control.
+- Secure
+- Happens before rendering
+- Better for authentication
 
 ---
 
-## Installation
+# Navigation Comparison
 
-Initialize Shadcn/UI:
+| Feature | Client Navigation | Server Navigation |
+|----------|------------------|-------------------|
+| Runs On | Browser | Server |
+| Refresh Required | No | No |
+| Authentication | Limited | Recommended |
+| Speed | Very Fast | Fast |
+| Security | Lower | Higher |
 
-```bash
-npx shadcn@latest init
+---
+
+# Creating Common Navbar
+
+Instead of repeating Navbar
+
+```
+Home
+
+Blogs
+
+Dashboard
+
+Login
 ```
 
-Add a component:
+inside every page,
 
-```bash
-npx shadcn@latest add button
+we place it inside
+
+```
+Root Layout
 ```
 
-Example usage:
+Example
 
-```tsx
-import { Button } from "@/components/ui/button";
+```
+layout.tsx
 
-export default function Home() {
-    return <Button>Click Me</Button>;
+↓
+
+Navbar
+
+↓
+
+Page
+
+↓
+
+Footer
+```
+
+Now every page automatically gets the same Navbar.
+
+---
+
+# Designing Navbar with V0.dev
+
+The Navbar UI can be generated using
+
+**v0.dev**
+
+Benefits
+
+- AI-generated components
+- Responsive layouts
+- Tailwind CSS support
+- Shadcn compatible
+
+Typical Navbar
+
+```
+Logo
+
+Blogs
+
+About
+
+Dashboard
+
+Login/Profile
+
+Logout
+```
+
+---
+
+# Fetching Current User (`/me` API)
+
+After login,
+
+we need to know
+
+```
+Who is logged in?
+```
+
+Backend usually provides
+
+```
+GET /me
+```
+
+Example response
+
+```json
+{
+    "id": 1,
+    "name": "John",
+    "email": "john@example.com"
 }
 ```
 
-Benefits:
-
-- Accessible
-- Customizable
-- Type-safe
-- Tailwind-based
+This endpoint validates the cookie and returns the authenticated user's information.
 
 ---
 
-# Project Folder Structure
+# Implementing Server Action for `/me`
 
-Example:
+Example
+
+```tsx
+"use server";
+
+export async function getCurrentUser() {
+
+}
+```
+
+Flow
+
+```
+Read Cookie
+
+↓
+
+Call Backend
+
+↓
+
+Validate Token
+
+↓
+
+Return User
+```
+
+---
+
+# Caching User Data
+
+Fetching the same user repeatedly is inefficient.
+
+Instead,
+
+cache the user information.
+
+```
+Request
+
+↓
+
+Cache
+
+↓
+
+Return Cached User
+
+↓
+
+No Extra API Call
+```
+
+Benefits
+
+- Faster navigation
+- Reduced backend load
+- Better performance
+
+---
+
+# Dynamic Navbar
+
+Navbar changes depending on authentication.
+
+## Guest User
+
+```
+Home
+
+Blogs
+
+Login
+
+Register
+```
+
+---
+
+## Logged-in User
+
+```
+Home
+
+Blogs
+
+Dashboard
+
+Profile
+
+Logout
+```
+
+Logic
+
+```
+Current User Exists
+
+↓
+
+Show Dashboard
+
+↓
+
+Else
+
+↓
+
+Show Login
+```
+
+This creates a personalized user experience.
+
+---
+
+# Logout Functionality
+
+Logging out means
+
+- Remove authentication cookies
+- Clear cached user data
+- Redirect to Home/Login
+
+Example
+
+```tsx
+cookies().delete("accessToken");
+```
+
+Flow
+
+```
+Logout Button
+
+↓
+
+Server Action
+
+↓
+
+Delete Cookie
+
+↓
+
+Clear Cache
+
+↓
+
+Redirect
+
+↓
+
+Guest Navbar
+```
+
+---
+
+# Authentication Lifecycle
+
+```
+Open Website
+
+↓
+
+Guest User
+
+↓
+
+Login Form
+
+↓
+
+Server Action
+
+↓
+
+Backend Authentication
+
+↓
+
+Generate Token
+
+↓
+
+Store Cookie
+
+↓
+
+Redirect
+
+↓
+
+Fetch /me
+
+↓
+
+Cache User
+
+↓
+
+Dynamic Navbar
+
+↓
+
+Logout
+
+↓
+
+Delete Cookie
+
+↓
+
+Guest State
+```
+
+---
+
+# Suggested Project Structure
 
 ```
 src/
 
-app/
-
-components/
-
-ui/
-
-shared/
-
-modules/
-
-services/
-
-lib/
-
-hooks/
-
-types/
-
-utils/
-
-constants/
-
-providers/
-
-public/
-```
-
-### Folder Purpose
-
-| Folder | Purpose |
-|----------|----------|
-| app | App Router pages |
-| components | Reusable components |
-| ui | Shadcn components |
-| modules | Feature-based modules |
-| hooks | Custom hooks |
-| services | API calls |
-| lib | Utility libraries |
-| utils | Helper functions |
-| providers | React providers |
-| constants | Global constants |
-| types | TypeScript types |
-
----
-
-# Environment Variables
-
-Sensitive information should **never** be hardcoded.
-
-Store secrets in a `.env.local` file.
-
-Example:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
-
-API_SECRET=123456
+├── app/
+│   ├── (auth)/
+│   │   ├── login/
+│   │   └── register/
+│   │
+│   ├── dashboard/
+│   ├── layout.tsx
+│   └── page.tsx
+│
+├── actions/
+│   ├── auth.ts
+│   └── user.ts
+│
+├── components/
+│   ├── Navbar.tsx
+│   ├── Footer.tsx
+│   └── ui/
+│
+├── services/
+│   └── AuthService.ts
+│
+├── lib/
+│
+├── hooks/
+│
+├── providers/
+│
+├── types/
+│
+└── utils/
 ```
 
 ---
 
-## Public Variables
+# Security Best Practices
 
-Variables starting with:
+## Use HTTP-Only Cookies
 
-```
-NEXT_PUBLIC_
-```
+✅ Secure
 
-can be accessed in both the client and server.
-
-Example:
-
-```tsx
-process.env.NEXT_PUBLIC_API_URL
-```
+❌ Avoid storing JWT tokens in Local Storage for sensitive authentication.
 
 ---
 
-## Private Variables
+## Validate User on the Server
 
-Variables without the prefix:
+Never trust client-side authentication state.
 
-```env
-DATABASE_URL=...
-JWT_SECRET=...
-```
-
-are only available on the server.
-
-Attempting to access them in Client Components will fail.
+Always verify cookies and tokens on the server.
 
 ---
 
-## Best Practices
+## Protect Sensitive Routes
 
-- Never commit `.env.local` to GitHub.
-- Keep secrets on the server.
-- Use descriptive variable names.
-- Use `NEXT_PUBLIC_` only for values safe to expose.
+Examples
+
+- Dashboard
+- Settings
+- Admin Panel
+- Profile
+
+Redirect unauthenticated users appropriately.
 
 ---
 
-# Important Commands
+## Cache Carefully
 
-Create a Next.js project:
-
-```bash
-npx create-next-app@latest
-```
-
-Run development server:
-
-```bash
-npm run dev
-```
-
-Build for production:
-
-```bash
-npm run build
-```
-
-Start production server:
-
-```bash
-npm start
-```
-
-Initialize Shadcn/UI:
-
-```bash
-npx shadcn@latest init
-```
-
-Add a component:
-
-```bash
-npx shadcn@latest add button
-```
+Cache user information only when appropriate, and clear or refresh it after login, logout, or profile updates to avoid stale authentication data.
 
 ---
 
 # Best Practices
 
-- Organize routes using Route Groups.
-- Prefer Server Components for data fetching.
-- Use Client Components only for interactivity.
-- Choose the appropriate rendering strategy:
-  - **SSG** for static content.
-  - **ISR** for occasionally updated content.
-  - **SSR** for request-specific data.
-  - **CSR** for highly interactive dashboards.
-- Cache data whenever possible.
-- Revalidate cached data instead of disabling caching unnecessarily.
-- Use Server Actions for mutations when appropriate.
-- Structure projects by features for scalability.
-- Keep reusable UI inside `components/` or `ui/`.
-- Store secrets in environment variables and never expose them to the client.
+- Build forms with Shadcn/UI components.
+- Use **Server Actions** for authentication logic.
+- Handle pending form submissions using `useActionState`.
+- Store authentication tokens in **HTTP-Only Cookies**.
+- Use **server-side redirects** after authentication when possible.
+- Keep the Navbar inside the Root Layout.
+- Fetch the current user through a dedicated `/me` endpoint.
+- Cache user data to improve performance.
+- Make the Navbar responsive to authentication state.
+- Delete cookies and clear cached authentication data during logout.
+- Keep authentication logic organized inside dedicated `actions` and `services` folders.
 
 ---
 
 # Module Summary
 
-In this module, we explored several advanced concepts of Next.js that are essential for building production-ready applications. We learned how Route Groups help organize routes without affecting URLs, how Server Components simplify data fetching, and how different rendering strategies (SSR, CSR, SSG, and ISR) impact performance and SEO.
+This module focused on implementing a complete authentication system using the latest Next.js App Router features. We created a modern login interface with Shadcn/UI, processed login requests through Server Actions, and improved the user experience by managing form submission states with React's `useActionState`.
 
-We also studied Next.js caching mechanisms, fetch options, and revalidation techniques to improve application performance while ensuring fresh data when needed. Additionally, we learned the concept of mutations and how Server Functions and Server Actions enable secure server-side operations without creating traditional API routes.
+We also learned how to securely store authentication tokens using HTTP-Only Cookies, redirect users after successful login, and understand the differences between client-side and server-side navigation. Additionally, we built a reusable Navbar inside the Root Layout, fetched authenticated user information from the `/me` endpoint, cached user data for better performance, dynamically updated the Navbar based on the user's authentication state, and implemented a secure logout process.
 
-Finally, we set up a scalable project architecture, integrated Shadcn/UI for reusable and accessible components, organized the project's folder structure, and configured environment variables securely.
+By the end of this module, you should be able to:
 
-By completing this module, you should now be able to:
+- Create authentication forms using Shadcn/UI.
+- Process login requests with Server Actions.
+- Handle loading and pending states using `useActionState`.
+- Store JWT tokens securely in HTTP-Only Cookies.
+- Redirect users using both client-side and server-side navigation.
+- Build a reusable Navbar inside the Root Layout.
+- Fetch and cache authenticated user information.
+- Display different navigation options based on login status.
+- Implement secure logout functionality.
+- Apply authentication best practices in a Next.js application.
 
-- Organize routes using Route Groups.
-- Fetch data efficiently in Server Components.
-- Understand and choose between SSR, CSR, SSG, and ISR.
-- Implement caching and revalidation strategies.
-- Use Server Actions for handling data mutations.
-- Build a scalable Next.js project structure.
-- Integrate and use Shadcn/UI components.
-- Manage environment variables securely.
-- Apply Next.js best practices for real-world applications.
-
-This module lays the groundwork for developing modern, high-performance, and maintainable full-stack applications with Next.js.
+This module completes the foundation of user authentication and prepares you for building secure, scalable, and production-ready full-stack applications with Next.js.
