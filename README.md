@@ -1,727 +1,879 @@
-# Module 29: Building Blog App Frontend with Next.js (Part-3)
+# Module 30: Building Blog App Frontend with Next.js (Part-4)
 
-> **Goal:** Build a complete authentication system in Next.js using **Server Actions**, **HTTP-Only Cookies**, **Shadcn/UI**, **React's `useActionState`**, **dynamic navigation**, and **authentication state management**.
+> **Goal:** Implement a complete authentication and authorization system in Next.js using **Proxy (Middleware)**, **Role-Based Access Control (RBAC)**, **Protected Routes**, **Refresh Token Authentication**, and **Automatic Access Token Refresh**.
 
 ---
 
 # Table of Contents
 
 - Introduction
-- Authentication Flow Overview
-- Creating Login Form with Shadcn/UI
-- Server Actions for Login
-- Handling Form State with `useActionState`
-- Setting Authentication Tokens in Cookies
-- Redirecting Users After Login
-- Client-Side vs Server-Side Navigation
-- Creating a Common Navbar
-- Fetching Logged-in User Information (`/me`)
-- Caching User Data
-- Dynamic Navbar Based on Authentication
-- Logout Functionality
+- Authentication vs Authorization
+- Role-Based Authentication Flow
+- Redirecting Users Based on Roles
+- What is Proxy (Middleware) in Next.js?
+- Why Use a Proxy?
+- Creating a Proxy File
+- Implementing Proxy in the Project
+- Understanding the Matcher Configuration
+- Catch-All Routes
+- Handling Authentication Routes
+- Protecting Private Routes
+- Role-Based Route Authorization
+- Refresh Token Authentication
+- Automatically Generating New Access Tokens
 - Complete Authentication Flow
 - Project Folder Structure
 - Best Practices
+- Common Mistakes
 - Module Summary
 
 ---
 
 # Introduction
 
-In the previous modules, we learned:
+In **Module 29**, we implemented:
 
-- Next.js fundamentals
-- App Router
-- Route Groups
-- Data Fetching
-- SSR, CSR, SSG, ISR
+- Login Form
 - Server Actions
-- Project Structure
-- Shadcn/UI
+- HTTP-Only Cookies
+- Authentication
+- Dynamic Navbar
+- Logout
 
-In this module, we build one of the most important features of any web application:
+However, simply logging in is **not enough**.
 
-# User Authentication
+A real-world application must ensure that:
 
-By the end of this module, users will be able to
+- Guests cannot access protected pages.
+- Logged-in users cannot access login/register pages.
+- Admin users can access admin pages.
+- Regular users cannot access admin routes.
+- Expired access tokens are refreshed automatically.
 
-- Login
-- Store authentication securely
-- Stay logged in
-- View personalized navigation
-- Logout securely
+This module focuses on implementing these security features using **Next.js Proxy (Middleware)**.
 
 ---
 
-# Authentication Flow Overview
+# Authentication vs Authorization
 
-A typical authentication process looks like this:
+These two concepts are often confused but serve different purposes.
+
+## Authentication
+
+Authentication answers the question:
+
+> **Who are you?**
+
+Example:
+
+```
+Email
+
+↓
+
+Password
+
+↓
+
+Verify Identity
+
+↓
+
+Login Successful
+```
+
+Examples:
+
+- Login
+- Register
+- JWT Validation
+- Cookie Validation
+
+---
+
+## Authorization
+
+Authorization answers the question:
+
+> **What are you allowed to do?**
+
+Example:
 
 ```
 User
 
 ↓
 
-Enter Email & Password
+Role
 
 ↓
 
-Login Form
+Permission
 
 ↓
 
-Server Action
-
-↓
-
-Backend API
-
-↓
-
-Validate Credentials
-
-↓
-
-Generate JWT Token
-
-↓
-
-Store Token in Cookie
-
-↓
-
-Redirect User
-
-↓
-
-Fetch Current User (/me)
-
-↓
-
-Update Navbar
-
-↓
-
-User Authenticated
+Allowed / Denied
 ```
+
+Examples:
+
+- Admin Dashboard
+- Moderator Panel
+- User Dashboard
+- Manage Posts
+- Delete Users
 
 ---
 
-# Creating Login Form with Shadcn/UI
+## Authentication vs Authorization
 
-## Why Shadcn/UI?
+| Authentication      | Authorization                |
+| ------------------- | ---------------------------- |
+| Identifies the user | Determines permissions       |
+| Happens first       | Happens after authentication |
+| Login process       | Access control               |
+| Uses credentials    | Uses roles & permissions     |
 
-Shadcn/UI provides
+---
 
-- Accessible components
-- Beautiful design
-- Tailwind CSS integration
-- TypeScript support
-- Customizable components
+# Role-Based Authentication Flow
 
-Instead of building every input manually, we use ready-made components.
+Example roles:
+
+```
+Guest
+
+↓
+
+User
+
+↓
+
+Moderator
+
+↓
+
+Admin
+```
+
+Example permissions:
+
+| Role      | Dashboard | Create Post | Delete Users | Manage Settings |
+| --------- | --------- | ----------- | ------------ | --------------- |
+| Guest     | ❌        | ❌          | ❌           | ❌              |
+| User      | ✅        | ✅          | ❌           | ❌              |
+| Moderator | ✅        | ✅          | Limited      | ❌              |
+| Admin     | ✅        | ✅          | ✅           | ✅              |
+
+---
+
+# Redirecting Users Based on Roles
+
+After a successful login, users should be redirected based on their assigned role.
 
 Example:
 
-```tsx
-<Input
-    placeholder="Enter your email"
-/>
+```
+Login
 
-<Input
-    type="password"
-/>
+↓
 
-<Button>
-    Login
-</Button>
+Backend Returns Role
+
+↓
+
+Admin
+
+↓
+
+/admin
 ```
 
----
+or
 
-## Benefits
+```
+Login
 
-- Consistent UI
-- Faster development
-- Better accessibility
-- Responsive design
+↓
 
----
+Backend Returns Role
 
-# Implementing Server Action for Login
+↓
 
-Instead of creating an API route inside Next.js, we can use a **Server Action**.
+User
 
-Example
+↓
 
-```tsx
-"use server";
+/dashboard
+```
 
-export async function loginUser(formData: FormData) {
+Example logic:
 
-    // Call backend API
+```ts
+if (user.role === "admin") {
+  redirect("/admin");
+}
 
+if (user.role === "user") {
+  redirect("/dashboard");
 }
 ```
 
-The Server Action
+Benefits:
 
-- receives form data
-- validates input
-- calls backend API
-- processes response
-- stores authentication token
-- redirects user
+- Personalized experience
+- Better security
+- Cleaner navigation
 
 ---
 
-## Advantages
+# What is Proxy (Middleware) in Next.js?
 
-- Less boilerplate
-- Secure execution
-- Direct server communication
-- No extra API route required
+A **Proxy** (previously called **Middleware**) is code that executes **before a request reaches a page or API route**.
 
----
+It acts as a gatekeeper.
 
-# Handling Form Pending State with `useActionState`
-
-Submitting a form takes time.
-
-Without feedback, users may think nothing is happening.
-
-React provides
-
-```
-useActionState()
-```
-
-to manage server action state.
-
-Example
-
-```tsx
-const [state, formAction, pending] =
-    useActionState(loginUser, null);
-```
-
-During submission
-
-```
-Button
-
-↓
-
-Loading...
-
-↓
-
-Disabled
-
-↓
-
-Response
-
-↓
-
-Enabled
-```
-
----
-
-## Benefits
-
-- Prevents duplicate submissions
-- Better user experience
-- Displays validation errors
-- Tracks server response
-
----
-
-# Setting Authentication Tokens in Cookies
-
-After successful login
-
-Backend returns
-
-```
-Access Token
-
-Refresh Token
-```
-
-Instead of storing them inside
-
-- Local Storage ❌
-- Session Storage ❌
-
-we store them inside
-
-## HTTP-Only Cookies
-
-Advantages
-
-- More secure
-- Protected from JavaScript
-- Prevents XSS attacks
-- Automatically included with requests
-
-Example
-
-```tsx
-cookies().set(
-    "accessToken",
-    token
-);
-```
-
----
-
-# Why Cookies?
+Flow:
 
 ```
 Browser
 
 ↓
 
-Stores Cookie
+Request
 
 ↓
 
-Automatically Sends Cookie
+Proxy
 
 ↓
 
-Server Reads Cookie
-
-↓
-
-Authenticate User
-```
-
-Users don't need to log in repeatedly.
-
----
-
-# Redirecting User After Login
-
-After successful login
-
-```
-Login
-
-↓
-
-Dashboard
-
-or
-
-↓
-
-Home Page
-```
-
-Next.js provides multiple redirect methods.
-
----
-
-## Server-side Redirect
-
-Inside Server Action
-
-```tsx
-redirect("/");
-```
-
-Runs before the page is rendered.
-
----
-
-## Client-side Redirect
-
-Inside Client Component
-
-```tsx
-const router = useRouter();
-
-router.push("/");
-```
-
-Runs after rendering.
-
----
-
-# Client-Side vs Server-Side Navigation
-
-## Client-side Navigation
-
-Uses
-
-```
-router.push()
-
-<Link>
-
-router.replace()
-```
-
-Benefits
-
-- Fast
-- No full page reload
-- Better user experience
-
----
-
-## Server-side Navigation
-
-Uses
-
-```
-redirect()
-```
-
-Benefits
-
-- Secure
-- Happens before rendering
-- Better for authentication
-
----
-
-# Navigation Comparison
-
-| Feature | Client Navigation | Server Navigation |
-|----------|------------------|-------------------|
-| Runs On | Browser | Server |
-| Refresh Required | No | No |
-| Authentication | Limited | Recommended |
-| Speed | Very Fast | Fast |
-| Security | Lower | Higher |
-
----
-
-# Creating Common Navbar
-
-Instead of repeating Navbar
-
-```
-Home
-
-Blogs
-
-Dashboard
-
-Login
-```
-
-inside every page,
-
-we place it inside
-
-```
-Root Layout
-```
-
-Example
-
-```
-layout.tsx
-
-↓
-
-Navbar
+Allow
 
 ↓
 
 Page
+```
+
+or
+
+```
+Browser
 
 ↓
 
-Footer
-```
+Request
 
-Now every page automatically gets the same Navbar.
+↓
+
+Proxy
+
+↓
+
+Redirect
+
+↓
+
+Login
+```
 
 ---
 
-# Designing Navbar with V0.dev
+# Why Use a Proxy?
 
-The Navbar UI can be generated using
-
-**v0.dev**
-
-Benefits
-
-- AI-generated components
-- Responsive layouts
-- Tailwind CSS support
-- Shadcn compatible
-
-Typical Navbar
+Without a proxy:
 
 ```
-Logo
+User
 
-Blogs
-
-About
+↓
 
 Dashboard
 
-Login/Profile
+↓
 
-Logout
+Page Opens
+```
+
+Anyone can access the page if no protection exists.
+
+With a proxy:
+
+```
+User
+
+↓
+
+Dashboard
+
+↓
+
+Proxy Checks Login
+
+↓
+
+Allow / Redirect
+```
+
+Benefits:
+
+- Protect routes
+- Redirect users
+- Read cookies
+- Verify JWT tokens
+- Refresh expired tokens
+- Restrict pages by role
+
+---
+
+# Creating a Proxy File
+
+In modern Next.js versions, create a proxy file at the project root.
+
+Example:
+
+```
+proxy.ts
+```
+
+or
+
+```
+src/
+
+proxy.ts
+```
+
+The proxy intercepts incoming requests before pages are rendered.
+
+---
+
+# Proxy Request Lifecycle
+
+```
+Incoming Request
+
+↓
+
+Read Cookies
+
+↓
+
+Check Access Token
+
+↓
+
+Token Valid?
+
+↓
+
+Yes → Continue
+
+↓
+
+No
+
+↓
+
+Refresh Token Exists?
+
+↓
+
+Yes → Generate New Token
+
+↓
+
+Continue
+
+↓
+
+No
+
+↓
+
+Redirect Login
 ```
 
 ---
 
-# Fetching Current User (`/me` API)
+# Implementing Proxy in the Project
 
-After login,
+Typical responsibilities include:
 
-we need to know
+- Reading cookies
+- Checking authentication
+- Verifying user role
+- Redirecting unauthorized users
+- Refreshing expired tokens
+- Protecting private pages
 
-```
-Who is logged in?
-```
-
-Backend usually provides
-
-```
-GET /me
-```
-
-Example response
-
-```json
-{
-    "id": 1,
-    "name": "John",
-    "email": "john@example.com"
-}
-```
-
-This endpoint validates the cookie and returns the authenticated user's information.
-
----
-
-# Implementing Server Action for `/me`
-
-Example
-
-```tsx
-"use server";
-
-export async function getCurrentUser() {
-
-}
-```
-
-Flow
-
-```
-Read Cookie
-
-↓
-
-Call Backend
-
-↓
-
-Validate Token
-
-↓
-
-Return User
-```
-
----
-
-# Caching User Data
-
-Fetching the same user repeatedly is inefficient.
-
-Instead,
-
-cache the user information.
+Flow:
 
 ```
 Request
 
 ↓
 
-Cache
+Read Cookie
 
 ↓
 
-Return Cached User
+Validate
 
 ↓
 
-No Extra API Call
-```
+Allow
 
-Benefits
-
-- Faster navigation
-- Reduced backend load
-- Better performance
-
----
-
-# Dynamic Navbar
-
-Navbar changes depending on authentication.
-
-## Guest User
-
-```
-Home
-
-Blogs
-
-Login
-
-Register
-```
-
----
-
-## Logged-in User
-
-```
-Home
-
-Blogs
-
-Dashboard
-
-Profile
-
-Logout
-```
-
-Logic
-
-```
-Current User Exists
-
-↓
-
-Show Dashboard
-
-↓
-
-Else
-
-↓
-
-Show Login
-```
-
-This creates a personalized user experience.
-
----
-
-# Logout Functionality
-
-Logging out means
-
-- Remove authentication cookies
-- Clear cached user data
-- Redirect to Home/Login
-
-Example
-
-```tsx
-cookies().delete("accessToken");
-```
-
-Flow
-
-```
-Logout Button
-
-↓
-
-Server Action
-
-↓
-
-Delete Cookie
-
-↓
-
-Clear Cache
+or
 
 ↓
 
 Redirect
-
-↓
-
-Guest Navbar
 ```
 
 ---
 
-# Authentication Lifecycle
+# Understanding the Matcher Configuration
+
+The `matcher` determines which routes the proxy should execute for.
+
+Example:
+
+```ts
+export const config = {
+  matcher: ["/dashboard/:path*"],
+};
+```
+
+This means the proxy only runs for dashboard routes.
+
+---
+
+# Multiple Matchers
+
+Example:
+
+```ts
+matcher: ["/dashboard/:path*", "/admin/:path*", "/profile/:path*"];
+```
+
+Now the proxy protects all of these routes.
+
+---
+
+# Catch-All Routes
+
+A catch-all matcher protects an entire route tree.
+
+Example:
+
+```
+/dashboard
+
+/dashboard/profile
+
+/dashboard/settings
+
+/dashboard/posts
+
+/dashboard/posts/edit
+```
+
+Matcher:
+
+```ts
+"/dashboard/:path*";
+```
+
+The `:path*` segment matches every nested route.
+
+Benefits:
+
+- Less code
+- Easier maintenance
+- Automatic protection for new pages
+
+---
+
+# Handling Authentication Routes
+
+Authentication pages include:
+
+```
+/login
+
+/register
+
+/forgot-password
+```
+
+If a user is already authenticated:
+
+```
+User
+
+↓
+
+Open Login
+
+↓
+
+Already Logged In?
+
+↓
+
+Yes
+
+↓
+
+Redirect Dashboard
+```
+
+Example logic:
+
+```ts
+if (loggedIn && pathname === "/login") {
+  redirect("/dashboard");
+}
+```
+
+This prevents logged-in users from accessing authentication pages unnecessarily.
+
+---
+
+# Protecting Private Routes
+
+Examples:
+
+```
+/dashboard
+
+/profile
+
+/settings
+
+/orders
+
+/my-posts
+```
+
+Flow:
+
+```
+Open Dashboard
+
+↓
+
+Proxy
+
+↓
+
+Logged In?
+
+↓
+
+Yes
+
+↓
+
+Continue
+
+↓
+
+No
+
+↓
+
+Redirect Login
+```
+
+---
+
+# Role-Based Route Authorization
+
+Authentication alone is not sufficient.
+
+Example:
+
+```
+Admin Route
+
+↓
+
+Current Role
+
+↓
+
+User
+
+↓
+
+Access Denied
+```
+
+Flow:
+
+```
+Admin Page
+
+↓
+
+Read Role
+
+↓
+
+Admin?
+
+↓
+
+Yes
+
+↓
+
+Continue
+
+↓
+
+No
+
+↓
+
+Redirect Unauthorized
+```
+
+Example:
+
+```ts
+if (role !== "admin") {
+  redirect("/unauthorized");
+}
+```
+
+---
+
+# Authorization Matrix
+
+| Route          | Guest | User | Admin |
+| -------------- | ----- | ---- | ----- |
+| `/`            | ✅    | ✅   | ✅    |
+| `/login`       | ✅    | ❌   | ❌    |
+| `/register`    | ✅    | ❌   | ❌    |
+| `/dashboard`   | ❌    | ✅   | ✅    |
+| `/profile`     | ❌    | ✅   | ✅    |
+| `/admin`       | ❌    | ❌   | ✅    |
+| `/admin/users` | ❌    | ❌   | ✅    |
+
+---
+
+# Refresh Token Authentication
+
+Access tokens usually have a short lifetime.
+
+Example:
+
+```
+Access Token
+
+↓
+
+Expires
+
+↓
+
+Need New Token
+```
+
+Instead of forcing users to log in again, we use a **Refresh Token**.
+
+Flow:
+
+```
+Access Token
+
+Expired
+
+↓
+
+Refresh Token
+
+↓
+
+Backend
+
+↓
+
+New Access Token
+```
+
+---
+
+# Why Use Refresh Tokens?
+
+Benefits:
+
+- Better user experience
+- Longer login sessions
+- Improved security
+- Short-lived access tokens
+
+Typical flow:
+
+```
+Login
+
+↓
+
+Access Token
+
+↓
+
+Expires
+
+↓
+
+Refresh Token
+
+↓
+
+New Access Token
+
+↓
+
+Continue Browsing
+```
+
+---
+
+# Automatically Generating New Access Tokens
+
+Inside the proxy:
+
+```
+Request
+
+↓
+
+Access Token
+
+↓
+
+Expired
+
+↓
+
+Refresh Token
+
+↓
+
+Backend
+
+↓
+
+Generate New Token
+
+↓
+
+Update Cookie
+
+↓
+
+Continue Request
+```
+
+If refresh also fails:
+
+```
+Delete Cookies
+
+↓
+
+Redirect Login
+```
+
+This provides seamless authentication without interrupting the user.
+
+---
+
+# Complete Authentication Flow
 
 ```
 Open Website
 
 ↓
 
-Guest User
+Proxy
 
 ↓
 
-Login Form
+Access Token Exists?
 
 ↓
 
-Server Action
+Yes
 
 ↓
 
-Backend Authentication
+Valid?
 
 ↓
 
-Generate Token
+Yes
 
 ↓
 
-Store Cookie
+Continue
 
 ↓
 
-Redirect
+No
 
 ↓
 
-Fetch /me
+Refresh Token Exists?
 
 ↓
 
-Cache User
+Yes
 
 ↓
 
-Dynamic Navbar
+Backend Issues New Access Token
 
 ↓
 
-Logout
+Update Cookie
 
 ↓
 
-Delete Cookie
+Continue
 
 ↓
 
-Guest State
+No
+
+↓
+
+Redirect Login
+
+↓
+
+Login
+
+↓
+
+Receive Tokens
+
+↓
+
+Store HTTP-Only Cookies
+
+↓
+
+Redirect Based On Role
+
+↓
+
+Access Protected Pages
 ```
 
 ---
@@ -734,9 +886,12 @@ src/
 ├── app/
 │   ├── (auth)/
 │   │   ├── login/
-│   │   └── register/
+│   │   ├── register/
+│   │   └── forgot-password/
 │   │
 │   ├── dashboard/
+│   ├── admin/
+│   ├── profile/
 │   ├── layout.tsx
 │   └── page.tsx
 │
@@ -744,23 +899,19 @@ src/
 │   ├── auth.ts
 │   └── user.ts
 │
-├── components/
-│   ├── Navbar.tsx
-│   ├── Footer.tsx
-│   └── ui/
-│
 ├── services/
-│   └── AuthService.ts
+│   ├── AuthService.ts
+│   └── UserService.ts
+│
+├── components/
+│
+├── utils/
 │
 ├── lib/
 │
-├── hooks/
-│
-├── providers/
-│
 ├── types/
 │
-└── utils/
+└── proxy.ts
 ```
 
 ---
@@ -769,72 +920,97 @@ src/
 
 ## Use HTTP-Only Cookies
 
-✅ Secure
-
-❌ Avoid storing JWT tokens in Local Storage for sensitive authentication.
+Store authentication tokens in **HTTP-Only Cookies** instead of Local Storage.
 
 ---
 
-## Validate User on the Server
+## Validate Every Protected Request
 
-Never trust client-side authentication state.
+Do not rely solely on client-side authentication.
 
-Always verify cookies and tokens on the server.
-
----
-
-## Protect Sensitive Routes
-
-Examples
-
-- Dashboard
-- Settings
-- Admin Panel
-- Profile
-
-Redirect unauthenticated users appropriately.
+Always verify authentication in the proxy or on the server.
 
 ---
 
-## Cache Carefully
+## Keep Access Tokens Short-Lived
 
-Cache user information only when appropriate, and clear or refresh it after login, logout, or profile updates to avoid stale authentication data.
+Use:
+
+- Short-lived Access Tokens
+- Long-lived Refresh Tokens
+
+This improves overall security.
+
+---
+
+## Apply Role-Based Authorization
+
+Always verify the user's role before allowing access to privileged routes.
+
+---
+
+## Redirect Unauthorized Users
+
+Instead of exposing protected pages, redirect users to:
+
+- `/login`
+- `/unauthorized`
+- `/403`
+
+depending on the situation.
+
+---
+
+# Common Mistakes
+
+❌ Protecting routes only on the client.
+
+❌ Storing JWT tokens in Local Storage for sensitive authentication.
+
+❌ Forgetting to verify user roles.
+
+❌ Not refreshing expired access tokens.
+
+❌ Allowing authenticated users to access login or registration pages.
+
+❌ Forgetting to clear authentication cookies after logout.
 
 ---
 
 # Best Practices
 
-- Build forms with Shadcn/UI components.
-- Use **Server Actions** for authentication logic.
-- Handle pending form submissions using `useActionState`.
-- Store authentication tokens in **HTTP-Only Cookies**.
-- Use **server-side redirects** after authentication when possible.
-- Keep the Navbar inside the Root Layout.
-- Fetch the current user through a dedicated `/me` endpoint.
-- Cache user data to improve performance.
-- Make the Navbar responsive to authentication state.
-- Delete cookies and clear cached authentication data during logout.
-- Keep authentication logic organized inside dedicated `actions` and `services` folders.
+- Use a Proxy to centralize authentication logic.
+- Protect all private routes using `matcher`.
+- Use catch-all matchers for nested routes.
+- Redirect users based on their roles after login.
+- Prevent authenticated users from accessing authentication pages.
+- Validate user roles before serving protected pages.
+- Use HTTP-Only Cookies for storing tokens.
+- Automatically refresh expired access tokens using refresh tokens.
+- Clear authentication cookies when refresh fails.
+- Keep authentication and authorization logic separate.
 
 ---
 
 # Module Summary
 
-This module focused on implementing a complete authentication system using the latest Next.js App Router features. We created a modern login interface with Shadcn/UI, processed login requests through Server Actions, and improved the user experience by managing form submission states with React's `useActionState`.
+In this module, we implemented a complete authentication and authorization system using **Next.js Proxy (Middleware)**. We learned the difference between authentication and authorization, redirected users based on their roles after login, and used the proxy as a centralized layer to protect application routes.
 
-We also learned how to securely store authentication tokens using HTTP-Only Cookies, redirect users after successful login, and understand the differences between client-side and server-side navigation. Additionally, we built a reusable Navbar inside the Root Layout, fetched authenticated user information from the `/me` endpoint, cached user data for better performance, dynamically updated the Navbar based on the user's authentication state, and implemented a secure logout process.
+We explored how the `matcher` configuration and catch-all routes allow us to secure entire sections of an application with minimal code. We also handled authentication pages intelligently by preventing logged-in users from accessing login and registration pages, protected private routes from unauthenticated access, and implemented role-based authorization to restrict access to sensitive pages such as admin dashboards.
+
+Finally, we learned how to automatically refresh expired access tokens using refresh tokens inside the proxy, providing a seamless and secure authentication experience without requiring users to log in repeatedly.
 
 By the end of this module, you should be able to:
 
-- Create authentication forms using Shadcn/UI.
-- Process login requests with Server Actions.
-- Handle loading and pending states using `useActionState`.
-- Store JWT tokens securely in HTTP-Only Cookies.
-- Redirect users using both client-side and server-side navigation.
-- Build a reusable Navbar inside the Root Layout.
-- Fetch and cache authenticated user information.
-- Display different navigation options based on login status.
-- Implement secure logout functionality.
-- Apply authentication best practices in a Next.js application.
+- Explain the difference between authentication and authorization.
+- Redirect users to different pages based on their roles.
+- Configure and implement a Proxy in a Next.js application.
+- Use `matcher` to protect specific routes.
+- Secure nested routes with catch-all matchers.
+- Prevent authenticated users from visiting authentication pages.
+- Protect private routes from unauthorized access.
+- Implement role-based route authorization.
+- Refresh expired access tokens automatically using refresh tokens.
+- Build a secure, scalable authentication flow following production best practices.
 
-This module completes the foundation of user authentication and prepares you for building secure, scalable, and production-ready full-stack applications with Next.js.
+This module completes the authentication layer of the Blog Application and provides the foundation for implementing enterprise-level security and access control in modern Next.js applications.
